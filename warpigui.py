@@ -77,18 +77,20 @@ GPIO.setmode(GPIO.BCM)
 logging.debug("IO Setup")
 
 # Page:
-Page = 1
-
+Page = 0
 
 def InterruptLeft(_):
     global Page
     # Loop over Pager 1,2,3
-    if Page > 2:
-        Page = 1
-    else:
-        Page = Page + 1
+    Page = ( Page + 1 ) % 3
     print(f"Page to be shown: {Page}")
 
+def InterruptRight(_):
+    global Page
+    # Loop over Pager 1,2,3
+    Page = ( Page - 1 ) % 3
+
+    print(f"Page to be shown: {Page}")
 
 def InterruptB(_):
     fshutdown()
@@ -126,6 +128,11 @@ GPIO.add_event_detect(17, GPIO.RISING, callback=InterruptDown, bouncetime=300)
 GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(23, GPIO.RISING, callback=InterruptLeft, bouncetime=300)
 
+# Right dir button (switch display info)
+GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.add_event_detect(27, GPIO.RISING, callback=InterruptRight, bouncetime=300)
+
+
 logging.debug("GPIO Setup done")
 
 # Clear display.
@@ -145,8 +152,8 @@ draw = ImageDraw.Draw(image)
 draw.rectangle((0, 0, width, height), outline=0, fill=0)
 
 # Load a font
-font = ImageFont.truetype("/home/kali/Minecraftia.ttf", 8)
-fontbig = ImageFont.truetype("/home/kali/arial.ttf", 24)
+font = ImageFont.truetype("/opt/warpi/fonts/misaki_gothic_2nd.ttf", 8)
+fontbig = ImageFont.truetype("/opt/warpi/fonts/KikaiChokokuJIS-Md.otf", 16)
 
 logging.debug("Display setup done")
 
@@ -168,15 +175,15 @@ autostarted = False
 
 
 def startservice():
-    logging.info("Starting GPSD / Kismet")
-    subprocess.Popen(["gpsd", "/dev/serial0", "-s", "9600"])
+    logging.info("Starting Kismet")
+    #subprocess.Popen(["gpsd", "/dev/serial0", "-s", "9600"])
     global kisuselog, kiserrlog, gpsrun, kissubproc
     kissubproc = subprocess.Popen(["kismet"], stdout=kisuselog, stderr=kiserrlog)
     gpsrun = True
 
 
 def stopservice():
-    logging.info("Stopping GPSD / Kismet")
+    logging.info("Stopping Kismet")
     global gpsrun, kissubproc
     gpsrun = False
     # Send a polite INT (CTRL+C)
@@ -185,12 +192,12 @@ def stopservice():
         kissubproc.wait(10)  # wait max 10sec to close
     except subprocess.TimeoutExpired:
         logging.debug("timeout during kill kismet happened")
-    try:
-        subprocess.run(
-            ["killall", "gpsd", "--verbose", "--wait", "--signal", "QUIT"], timeout=5
-        )
-    except subprocess.TimeoutExpired:
-        logging.debug("timeout during kill gpsd happened")
+    #try:
+    #    subprocess.run(
+    #        ["killall", "gpsd", "--verbose", "--wait", "--signal", "QUIT"], timeout=5
+    #    )
+    #except subprocess.TimeoutExpired:
+    #    logging.debug("timeout during kill gpsd happened")
 
 
 def freboot():
@@ -212,7 +219,7 @@ def fshutdown():
     kiserrlog.close()
     logging.debug("Kismet shutdown")
     draw.rectangle((0, 0, width, height), outline=0, fill=0)
-    draw.text((0, 20), "Shutdown", font=fontbig, fill=255)
+    draw.text((0, 20), "電源切", font=fontbig, fill=255)
     disp.image(image)
     disp.show()
     logging.debug("LCD Black")
@@ -252,16 +259,16 @@ while looping:
     else:
         sleeptime = 1
 
-    if Page == 1:
-        # Page 1 is the main screen, it shows information while the device runs.
+    if Page == 0:
+        # Page 0 is the main screen, it shows information while the device runs.
         draw.text(
             (0, 0),
-            f"CPU: {cpu / 100:>4.0%}  M: {mem / 100:>4.0%} T: {ct:5.1f}",
+            f"CPU:{cpu / 100:>4.0%} メモリ:{mem / 100:>4.0%} 温度:{ct:5.1f}" ,
             font=font,
             fill=255,
         )
         draw.text(
-            (0, 54), strftime("%Y-%m-%d   %H:%M:%S", localtime()), font=font, fill=255
+            (0, 54), strftime("%Y年%m月%d日 %H:%M:%S", localtime()), font=font, fill=255
         )
 
         if gpsrun:
@@ -270,7 +277,7 @@ while looping:
                 packet = gpsd.get_current()
                 draw.text(
                     (0, 10),
-                    f"GPS: {packet.mode}  SAT: {packet.sats:>3}  Use: {packet.sats_valid:>3}",
+                    f"GPS:{packet.mode}  衛星:{packet.sats:>3}  使用:{packet.sats_valid:>3}",
                     font=font,
                     fill=255,
                 )
@@ -289,10 +296,10 @@ while looping:
                 data = resp.json()
                 devices = data["kismet.system.devices.count"]
                 kismetmemory = data["kismet.system.memory.rss"] / 1024
-                draw.text((0, 20), f"D {devices:>7}", font=fontbig, fill=255)
+                draw.text((0, 22), f"検出数 {devices:>6}", font=fontbig, fill=255)
                 draw.text(
                     (0, 44),
-                    f"Kismet mem: {kismetmemory:>4.0f}mb",
+                    f"メモリ使用量: {kismetmemory:>4.0f}MB",
                     font=font,
                     fill=255,
                 )
@@ -312,40 +319,67 @@ while looping:
             s.close()
         draw.text(
             (0, 0),
-            f"SSH IP: {rpiIP}",
+            f"IPアドレス: {rpiIP}",
             font=font,
             fill=255,
         )
 
-    if Page == 3:
-        # Page 3 gives a short info about the buttons
+        try:
+            uptime = os.popen('uptime -p | sed -e "s/minute./分/g" -e  "s/hour./時間/g" -e "s/day./日/g" -e "s/week./週/g" -e "s/, //g" -e "s/up //g"').read()
+            draw.text(
+                (0, 10),
+                f"稼働時間: {uptime}",
+                font=font,
+                fill=255,
+            )
+        except Exception as e:
+            logging.error(f"An exception occurred {e}")
+
+        if gpsrun:
+            try:
+                gpsd.connect()
+                packet = gpsd.get_current()
+                lat,lon = packet.position()
+                speed = packet.speed()
+                draw.text(
+                    (0, 20),
+                    f"緯度:{lat:.5f} 経度:{lon:.5f}",
+                    font=font,
+                    fill=255,
+                )
+            except Exception as e:
+                logging.error(f"An exception occurred {e}")
+
+
+    if Page == 1:
+        # Page 1 gives a short info about the buttons
         draw.text(
             (0, 0),
-            f"#5 button = reboot",
+            f"ボタン5 : 再起動",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 10),
-            f"#6 button = shutdown",
+            f"ボタン6 : 電源切",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 20),
-            f"up arrow = start",
+            f"上      : 開始",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 30),
-            f"down arrow = stop",
+            f"下      : 停止",
             font=font,
             fill=255,
         )
         draw.text(
             (0, 40),
-            f"left arrow = screen",
+            f"左右    : 画面切替",
             font=font,
             fill=255,
         )

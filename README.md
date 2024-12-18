@@ -1,6 +1,13 @@
-# warpi
+# warpi-ja
 "GUI" script running on a Raspberry Pi 4 (and 3b), handling the startup, conversion and shutdown procedure.
 
+## オリジナルからの変更
+* GUIを日本語に対応，使用フォントを以下のものに変更
+	* フォント1 ![美咲フォント](https://littlelimit.net/misaki.htm)
+	* フォント2 ![機械彫刻用標準書体フォント - 基本フォント](https://font.kim/)
+* gpsdの起動に関与しないように変更．(systemdを使ってください)
+* 情報表示画面を少し拡張
+* kali 2024.xxで動かすためにrequirements.txtの内容を変更
 
 ## Setup:
 
