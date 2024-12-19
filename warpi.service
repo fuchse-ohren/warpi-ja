@@ -1,0 +1,10 @@
+[Unit]
+Description=warpigui-ja
+After=gpsd.service
+
+[Service]
+Type=idle
+ExecStart=/bin/bash /opt/warpi/startup.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -275,20 +275,22 @@ while looping:
             try:
                 gpsd.connect()
                 packet = gpsd.get_current()
+                gpsmode = ""
+                if packet.mode == 0:
+                    gpsmode = "エラー"
+                if packet.mode == 1:
+                    gpsmode = "  未"
+                if packet.mode == 2:
+                    gpsmode = "  2D"
+                if packet.mode == 3:
+                    gpsmode = "  3D"
                 draw.text(
                     (0, 10),
-                    f"GPS:{packet.mode}  衛星:{packet.sats:>3}  使用:{packet.sats_valid:>3}",
+                    f"GPS測位:{gpsmode}  衛星:{packet.sats_valid:>3}/{packet.sats:>3}",
                     font=font,
                     fill=255,
                 )
-                if packet.mode == 0:
-                    draw.rectangle((115, 10, width - 2, 20), outline=0, fill=0)
-                if packet.mode == 1:
-                    draw.rectangle((120, 14, width - 4, 18), outline=255, fill=0)
-                if packet.mode == 2:
-                    draw.rectangle((120, 14, width - 4, 18), outline=255, fill=1)
-                if packet.mode == 3:
-                    draw.rectangle((115, 10, width - 2, 20), outline=255, fill=1)
+
                 resp = requests.get(
                     "http://127.0.0.1:2501/system/status.json",
                     auth=(httpd_username, httpd_password),
@@ -325,7 +327,7 @@ while looping:
         )
 
         try:
-            uptime = os.popen('uptime -p | sed -e "s/minute./分/g" -e  "s/hour./時間/g" -e "s/day./日/g" -e "s/week./週/g" -e "s/, //g" -e "s/up //g"').read()
+            uptime = os.popen('uptime -p | sed -e "s/minut\\(e\\|es\\)/分/g" -e  "s/hou\\(r\\|rs\\)/時間/g" -e "s/da\\(y\\|ys\\)/日/g" -e "s/wee\\(k\\|ks\\)/週/g" -e "s/, //g" -e "s/up //g" -e "s/ //g"').read()
             draw.text(
                 (0, 10),
                 f"稼働時間: {uptime}",
