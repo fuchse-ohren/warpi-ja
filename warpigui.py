@@ -153,7 +153,7 @@ draw.rectangle((0, 0, width, height), outline=0, fill=0)
 
 # Load a font
 font = ImageFont.truetype("/opt/warpi/fonts/misaki_gothic_2nd.ttf", 8)
-fontbig = ImageFont.truetype("/opt/warpi/fonts/KikaiChokokuJIS-Md.otf", 16)
+fontbig = ImageFont.truetype("/opt/warpi/fonts/KikaiChokokuJIS-Md.otf", 24)
 
 logging.debug("Display setup done")
 
@@ -201,12 +201,20 @@ def stopservice():
 
 
 def freboot():
-    logging.info("Rebooting")
-    global looping
+    global looping, kisuselog, kiserrlog
     looping = False
-    disp.fill(0)
+    logging.info("Rebooting")
+    stopservice()
+    kisuselog.close()
+    kiserrlog.close()
+    logging.debug("Kismet shutdown")
+    draw.rectangle((0, 0, width, height), outline=0, fill=0)
+    draw.text((0, 20), "再起動", font=fontbig, fill=255)
+    disp.image(image)
     disp.show()
+    logging.debug("LCD Black")
     subprocess.Popen(["reboot"])
+    logging.debug("reboot triggered")
     quit()
 
 
@@ -255,9 +263,9 @@ while looping:
             "ps aux | sort -nrk 3,3 | head -n 10 >> /media/usb/highcpu.log", shell=True
         )
         logging.debug(f"High CPU: {cpu}")
-        sleeptime = 3
+        sleeptime = 5
     else:
-        sleeptime = 1
+        sleeptime = 0.5
 
     if Page == 0:
         # Page 0 is the main screen, it shows information while the device runs.
@@ -298,7 +306,12 @@ while looping:
                 data = resp.json()
                 devices = data["kismet.system.devices.count"]
                 kismetmemory = data["kismet.system.memory.rss"] / 1024
-                draw.text((0, 22), f"検出数 {devices:>6}", font=fontbig, fill=255)
+                if devices <= 99999:
+                    draw.text((0, 20), f"検出 {devices:>5}", font=fontbig, fill=255)
+                elif devices > 99999 and devices < 9999499:
+                    draw.text((0, 20), f"検出 {devices/1000:>4.0f}K", font=fontbig, fill=255)
+                else:
+                    draw.text((0, 20), f"検出 {devices/1000/1000:>4.0f}M", font=fontbig, fill=255)
                 draw.text(
                     (0, 44),
                     f"メモリ使用量: {kismetmemory:>4.0f}MB",
@@ -307,6 +320,13 @@ while looping:
                 )
             except Exception as e:
                 logging.error(f"An exception occurred {e}")
+        else:
+            draw.text(
+                (0, 22),
+                "停止中",
+                font=fontbig,
+                fill=255,
+            )
 
     if Page == 2:
         # Page 2 shows the IP from the system
@@ -349,6 +369,13 @@ while looping:
                     font=font,
                     fill=255,
                 )
+                draw.txt(
+                    (0, 30),
+                    f"速度:",
+                    font=font,
+                    fill=255,
+                )
+
             except Exception as e:
                 logging.error(f"An exception occurred {e}")
 
@@ -386,13 +413,13 @@ while looping:
             fill=255,
         )
 
-    if not autostarted:
-        if autostart > 0:
-            autostart = autostart - 1
-        else:
-            autostarted = True
-            if not gpsrun:
-                startservice()
+    #if not autostarted:
+    #    if autostart > 0:
+    #        autostart = autostart - 1
+    #    else:
+    #        autostarted = True
+    #        if not gpsrun:
+    #            startservice()
 
     # draw the screen:
     disp.image(image)
